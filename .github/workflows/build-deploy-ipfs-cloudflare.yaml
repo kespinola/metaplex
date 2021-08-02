@@ -17,7 +17,6 @@ jobs:
       - name: Build Metaplex
         working-directory: js
         env:
-          REACT_APP_STORE_OWNER_ADDRESS_ADDRESS: ${{ env.REACT_APP_STORE_OWNER_ADDRESS_ADDRESS }}
           CI: false
         run: yarn build
       - name: Export Static Next
@@ -26,9 +25,6 @@ jobs:
       - name: IPFS Deploy
         working-directory: js
         env:
-          IPFS_DEPLOY_PINATA__API_KEY: ${{ env.IPFS_DEPLOY_PINATA__API_KEY }}
           IPFS_DEPLOY_PINATA__SECRET_API_KEY: ${{ secrets.IPFS_DEPLOY_PINATA__SECRET_API_KEY }}
           IPFS_DEPLOY_CLOUDFLARE__API_TOKEN: ${{ secrets.IPFS_DEPLOY_CLOUDFLARE__API_TOKEN }}
-          IPFS_DEPLOY_CLOUDFLARE__ZONE: ${{ env.IPFS_DEPLOY_CLOUDFLARE__ZONE }}
-          IPFS_DEPLOY_CLOUDFLARE__RECORD: ${{ env.IPFS_DEPLOY_CLOUDFLARE__RECORD }}
-        run: IPFS_DEPLOY_PINATA__API_KEY=${IPFS_DEPLOY_PINATA__API_KEY} IPFS_DEPLOY_PINATA__SECRET_API_KEY=${IPFS_DEPLOY_PINATA__SECRET_API_KEY} npx ipfs-deploy -p pinata -d cloudflare build/web
+        run: npx ipfs-deploy -p pinata -d cloudflare build/web
