@@ -28,4 +28,4 @@ jobs:
         env:
           IPFS_DEPLOY_PINATA__SECRET_API_KEY: ${{ secrets.IPFS_DEPLOY_PINATA__SECRET_API_KEY }}
           IPFS_DEPLOY_CLOUDFLARE__API_TOKEN: ${{ secrets.IPFS_DEPLOY_CLOUDFLARE__API_TOKEN }}
-        run: npx ipfs-deploy -p pinata -d cloudflare build/web
+        run: echo "${IPFS_DEPLOY_PINATA__API_KEY}"
