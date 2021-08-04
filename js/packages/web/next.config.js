@@ -10,11 +10,10 @@ const plugins = [
       lessLoaderOptions: {
         lessOptions: {
           modifyVars: {
-            '@primary-color': '#768BF9',
-            '@text-color': 'rgba(255, 255, 255)',
             '@assetPrefix': assetPrefix || "''",
           },
           javascriptEnabled: true,
+          lessVarsFilePath: './ant-theme-overrides.less',
         },
       },
     },
@@ -27,8 +26,9 @@ module.exports = withPlugins(plugins, {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  env:{
-    NEXT_PUBLIC_STORE_OWNER_ADDRESS_ADDRESS: process.env.REACT_APP_STORE_OWNER_ADDRESS_ADDRESS,
+  env: {
+    NEXT_PUBLIC_STORE_OWNER_ADDRESS_ADDRESS:
+      process.env.REACT_APP_STORE_OWNER_ADDRESS_ADDRESS,
   },
   async rewrites() {
     return [
