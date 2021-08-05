@@ -1,5 +1,8 @@
 const withPlugins = require('next-compose-plugins');
 const withLess = require('next-with-less');
+const path = require('path');
+
+const pathToLessFileWithVariables = path.resolve('ant-theme-overrides.less');
 
 const assetPrefix = process.env.ASSET_PREFIX || '';
 
@@ -8,13 +11,7 @@ const plugins = [
     withLess,
     {
       lessLoaderOptions: {
-        lessOptions: {
-          modifyVars: {
-            '@assetPrefix': assetPrefix || "''",
-          },
-          javascriptEnabled: true,
-          lessVarsFilePath: './ant-theme-overrides.less',
-        },
+        additionalData: `@assetPrefix: ${assetPrefix};\n\n@import '${pathToLessFileWithVariables}';`,
       },
     },
   ],
