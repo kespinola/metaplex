@@ -32,11 +32,6 @@
   "resolutions": {
     "@types/react": "^17.0.16"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "prettier": {
     "arrowParens": "avoid",
     "semi": true,

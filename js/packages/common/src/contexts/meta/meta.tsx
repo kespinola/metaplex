@@ -21,7 +21,7 @@ const MetaContext = React.createContext<MetaContextState>({
 
 export function MetaProvider({ children = null as any }) {
   const connection = useConnection();
-  const { isReady, storeAddress } = useStore();
+  const { isReady, storeAddress, ownerAddress } = useStore();
 
   const [state, setState] = useState<MetaState>(getEmptyMetaState());
 
@@ -58,9 +58,7 @@ export function MetaProvider({ children = null as any }) {
 
     console.log('-----> Query started');
 
-    const nextState = !USE_SPEED_RUN
-      ? await loadAccounts(connection)
-      : await limitedLoadAccounts(connection);
+    const nextState = await loadAccounts(connection, ownerAddress as string, storeAddress)
 
     console.log('------->Query finished');
 
