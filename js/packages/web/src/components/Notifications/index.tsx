@@ -6,7 +6,6 @@ import {
 } from '@ant-design/icons';
 import {
   findProgramAddress,
-  loadAuction,
   programIds,
   StringPublicKey,
   toPublicKey,
@@ -18,7 +17,6 @@ import {
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection } from '@solana/web3.js';
 import { Badge, Popover, List } from 'antd';
-import { merge } from 'lodash';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { closePersonalEscrow } from '../../actions/closePersonalEscrow';
@@ -29,7 +27,7 @@ import { settle } from '../../actions/settle';
 import { startAuctionManually } from '../../actions/startAuctionManually';
 import { QUOTE_MINT } from '../../constants';
 import { useMeta } from '../../contexts';
-import { useNotifications, AuctionViewState, assembleAuctionView } from '../../hooks';
+import { AuctionViewState, useAuctions } from '../../hooks';
 
 interface NotificationCard {
   id: string;
@@ -183,18 +181,22 @@ export function useSettlementAuctions({
 }) {
   const { accountByMint } = useUserAccounts();
   const walletPubkey = wallet?.publicKey?.toBase58();
-  const { auctionViews, cachedRedemptionKeys, ...metaState } = useNotifications();
-  const { bidderPotsByAuctionAndBidder } = metaState;
+  const { bidderPotsByAuctionAndBidder } = useMeta();
+  const auctionsNeedingSettling = [...useAuctions(AuctionViewState.Ended), ...useAuctions(AuctionViewState.BuyNow)];
+
   const [validDiscoveredEndedAuctions, setValidDiscoveredEndedAuctions] =
     useState<Record<string, number>>({});
   useMemo(() => {
     const f = async () => {
-      const nextBatch = auctionViews
+      const nextBatch = auctionsNeedingSettling
         .filter(
-          a =>
-            walletPubkey &&
-            a.auctionManager.info.authority === walletPubkey &&
-            a.auction.info.ended(),
+          a => {
+            const isEndedInstantSale = a.isInstantSale && a.items.length === a.auction.info.bidState.bids.length;
+
+           return walletPubkey &&
+            a.auctionManager.authority === walletPubkey &&
+             (a.auction.info.ended() || isEndedInstantSale)
+          }
         )
         .sort(
           (a, b) =>
@@ -207,14 +209,19 @@ export function useSettlementAuctions({
           CALLING_MUTEX[av.auctionManager.pubkey] = true;
           try {
             const balance = await connection.getTokenAccountBalance(
-              toPublicKey(av.auctionManager.info.acceptPayment),
+              toPublicKey(av.auctionManager.acceptPayment),
             );
             if (
               ((balance.value.uiAmount || 0) === 0 &&
                 av.auction.info.bidState.bids
                   .map(b => b.amount.toNumber())
                   .reduce((acc, r) => (acc += r), 0) > 0) ||
-              (balance.value.uiAmount || 0) > 0.01
+              // FIXME: Why 0.01? If this is used,
+              //        no auctions with lower prices (e.g. 0.0001) appear in notifications,
+              //        thus making settlement of such an auction impossible.
+              //        Temporarily making the number a lesser one.
+              // (balance.value.uiAmount || 0) > 0.01
+              (balance.value.uiAmount || 0) > 0.00001
             ) {
               setValidDiscoveredEndedAuctions(old => ({
                 ...old,
@@ -228,16 +235,16 @@ export function useSettlementAuctions({
       }
     };
     f();
-  }, [auctionViews.length, walletPubkey]);
+  }, [auctionsNeedingSettling.length, walletPubkey]);
 
   Object.keys(validDiscoveredEndedAuctions).forEach(auctionViewKey => {
-    const auctionView = auctionViews.find(
+    const auctionView = auctionsNeedingSettling.find(
       a => a.auctionManager.pubkey === auctionViewKey,
     );
     if (!auctionView) return;
     const winners = [...auctionView.auction.info.bidState.bids]
       .reverse()
-      .slice(0, auctionView.auction.info.bidState.max.toNumber())
+      .slice(0, auctionView.auctionManager.numWinners.toNumber())
       .reduce((acc: Record<string, boolean>, r) => {
         acc[r.key] = true;
         return acc;
@@ -266,23 +273,10 @@ export function useSettlementAuctions({
         ),
         action: async () => {
           try {
-            const auctionState = await loadAuction(connection, auctionView.auctionManager, true)
-            const completeAuctionView = assembleAuctionView(
-              walletPubkey,
-              auctionView.auctionManager,
-              auctionView.auction,
-              cachedRedemptionKeys,
-              merge({}, metaState, auctionState)
-            )
-
-            if (!completeAuctionView) {
-              return false;
-            }
-
             await settle(
               connection,
               wallet,
-              completeAuctionView,
+              auctionView,
               // Just claim all bidder pots
               bidsToClaim,
               myPayingAccount?.pubkey,
@@ -304,14 +298,20 @@ export function useSettlementAuctions({
 
 export function Notifications() {
   const {
-    auctionViews,
     metadata,
     whitelistedCreatorsByCreator,
     store,
-  } = useNotifications();
+    vaults,
+    safetyDepositBoxesByVaultAndIndex,
+  } = useMeta();
+  const possiblyBrokenAuctionManagerSetups = useAuctions(
+    AuctionViewState.Defective,
+  );
 
+  const upcomingAuctions = useAuctions(AuctionViewState.Upcoming);
   const connection = useConnection();
   const wallet = useWallet();
+  const { accountByMint } = useUserAccounts();
 
   const notifications: NotificationCard[] = [];
 
@@ -321,20 +321,20 @@ export function Notifications() {
 
   useSettlementAuctions({ connection, wallet, notifications });
 
-  const auctionsWithVaultsThatNeedResolving = useMemo(
+  const vaultsNeedUnwinding = useMemo(
     () =>
-      Object.values(auctionViews).filter(
-        a =>
-          a.vault.info.authority === walletPubkey &&
-          a.vault.info.state !== VaultState.Deactivated &&
-          a.vault.info.tokenTypeCount > 0,
+      Object.values(vaults).filter(
+        v =>
+          v.info.authority === walletPubkey &&
+          v.info.state !== VaultState.Deactivated &&
+          v.info.tokenTypeCount > 0,
       ),
-    [auctionViews, walletPubkey],
+    [vaults, walletPubkey],
   );
 
-  auctionsWithVaultsThatNeedResolving.forEach(a => {
+  vaultsNeedUnwinding.forEach(v => {
     notifications.push({
-      id: a.vault.pubkey,
+      id: v.pubkey,
       title: 'You have items locked in a defective auction!',
       description: (
         <span>
@@ -347,7 +347,8 @@ export function Notifications() {
           await unwindVault(
             connection,
             wallet,
-            a,
+            v,
+            safetyDepositBoxesByVaultAndIndex,
           );
         } catch (e) {
           console.error(e);
@@ -358,8 +359,8 @@ export function Notifications() {
     });
   });
 
-  auctionViews
-    .filter(v => v.state === AuctionViewState.Defective && v.auctionManager.info.authority === walletPubkey)
+  possiblyBrokenAuctionManagerSetups
+    .filter(v => v.auctionManager.authority === walletPubkey)
     .forEach(v => {
       notifications.push({
         id: v.auctionManager.pubkey,
@@ -376,6 +377,7 @@ export function Notifications() {
               connection,
               wallet,
               v,
+              safetyDepositBoxesByVaultAndIndex,
             );
           } catch (e) {
             console.error(e);
@@ -426,8 +428,8 @@ export function Notifications() {
     });
   });
 
-  auctionViews
-    .filter(v => v.state === AuctionViewState.Upcoming && v.auctionManager.info.authority === walletPubkey)
+  upcomingAuctions
+    .filter(v => v.auctionManager.authority === walletPubkey)
     .forEach(v => {
       notifications.push({
         id: v.auctionManager.pubkey,

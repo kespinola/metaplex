@@ -313,7 +313,7 @@ function InnerAnalytics({ mint }: { mint: MintInfo }) {
   const [sortedSales, setSortedSales] = useState<number[]>([]);
   const {
     metadata,
-    stores,
+    // stores,
     auctionManagersByAuction,
     bidderPotsByAuctionAndBidder,
     auctionDataExtended,
@@ -321,7 +321,7 @@ function InnerAnalytics({ mint }: { mint: MintInfo }) {
   } = useAnalytics();
 
   const totalNFTs = metadata.length;
-  const totalMarketplaces = Object.values(stores).length;
+  // const totalMarketplaces = Object.values(stores).length;
 
   const { auctions } = useAuctions();
 
@@ -360,7 +360,8 @@ function InnerAnalytics({ mint }: { mint: MintInfo }) {
         </Button>
         <h1>Overview</h1>
         <h3>
-          Total NFTs: {totalNFTs} Total Marketplaces: {totalMarketplaces}
+          Total NFTs: {totalNFTs}
+          {/* Total Marketplaces: {totalMarketplaces} */}
         </h3>
         <h1>User Breakdown</h1>
         <h3>Any Engagement: {Object.values(usersEngaged).length}</h3>

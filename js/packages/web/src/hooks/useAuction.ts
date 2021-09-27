@@ -1,10 +1,9 @@
-import { StringPublicKey, loadAuction, useConnection } from '@oyster/common';
+import { StringPublicKey } from '@oyster/common';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useEffect, useState } from 'react';
-import { merge } from 'lodash'
 import {
   AuctionView,
-  assembleAuctionView,
+  processAccountsIntoAuctionView,
   useCachedRedemptionKeysByWallet,
 } from '.';
 import { useMeta } from '../contexts';
@@ -12,46 +11,69 @@ import { useMeta } from '../contexts';
 export const useAuction = (id: StringPublicKey) => {
   const { publicKey } = useWallet();
   const cachedRedemptionKeys = useCachedRedemptionKeysByWallet();
-  const connection = useConnection()
 
-  const [auctionView, setAuctionView] =
+  const [existingAuctionView, setAuctionView] =
     useState<AuctionView | undefined>(undefined);
   const walletPubkey = publicKey?.toBase58();
   const {
-    isLoading,
-    auctionManagersByAuction,
     auctions,
-    ...metaState
+    auctionManagersByAuction,
+    safetyDepositBoxesByVaultAndIndex,
+    metadataByMint,
+    bidderMetadataByAuctionAndBidder,
+    bidderPotsByAuctionAndBidder,
+    masterEditions,
+    vaults,
+    safetyDepositConfigsByAuctionManagerAndIndex,
+    masterEditionsByOneTimeAuthMint,
+    masterEditionsByPrintingMint,
+    metadataByMasterEdition,
+    bidRedemptionV2sByAuctionManagerAndWinningIndex,
+    auctionDataExtended,
   } = useMeta();
 
   useEffect(() => {
-    if (isLoading) {
-      return
-    }
-
-    const auctionManager = auctionManagersByAuction[id];
     const auction = auctions[id];
-
-    if (!auctionManager) {
-      return
-    }
-
-    (async () => {
-      const auctionState = await loadAuction(connection, auctionManager, true)
-
-      const view = assembleAuctionView(
+    if (auction) {
+      const auctionView = processAccountsIntoAuctionView(
         walletPubkey,
-        auctionManager,
         auction,
+        auctionDataExtended,
+        auctionManagersByAuction,
+        safetyDepositBoxesByVaultAndIndex,
+        metadataByMint,
+        bidderMetadataByAuctionAndBidder,
+        bidderPotsByAuctionAndBidder,
+        bidRedemptionV2sByAuctionManagerAndWinningIndex,
+        masterEditions,
+        vaults,
+        safetyDepositConfigsByAuctionManagerAndIndex,
+        masterEditionsByPrintingMint,
+        masterEditionsByOneTimeAuthMint,
+        metadataByMasterEdition,
         cachedRedemptionKeys,
-        merge({}, metaState, auctionState)
+        undefined,
+        existingAuctionView || undefined,
       );
 
-      setAuctionView(view)
-
-
-    })()
-  }, [id, isLoading])
-
-  return auctionView;
+      if (auctionView) setAuctionView(auctionView);
+    }
+  }, [
+    auctions,
+    walletPubkey,
+    auctionManagersByAuction,
+    safetyDepositBoxesByVaultAndIndex,
+    metadataByMint,
+    bidderMetadataByAuctionAndBidder,
+    bidderPotsByAuctionAndBidder,
+    bidRedemptionV2sByAuctionManagerAndWinningIndex,
+    vaults,
+    safetyDepositConfigsByAuctionManagerAndIndex,
+    masterEditions,
+    masterEditionsByPrintingMint,
+    masterEditionsByOneTimeAuthMint,
+    metadataByMasterEdition,
+    cachedRedemptionKeys,
+  ]);
+  return existingAuctionView;
 };

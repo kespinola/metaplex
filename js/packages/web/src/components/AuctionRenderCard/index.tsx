@@ -24,8 +24,8 @@ export interface AuctionCard extends CardProps {
 }
 
 export const AuctionRenderCard = (props: AuctionCard) => {
-  let { auctionView } = props;
-  const id = auctionView?.thumbnail?.metadata?.pubkey;
+  const { auctionView } = props;
+  const id = auctionView.thumbnail.metadata.pubkey;
   const art = useArt(id);
   const name = art?.title || ' ';
   const [state, setState] = useState<CountdownState>();
@@ -41,14 +41,18 @@ export const AuctionRenderCard = (props: AuctionCard) => {
       : 0;
   const isUpcoming = auctionView.state === AuctionViewState.Upcoming;
 
-  const winningBid = auctionView.auction.info.lastBid
-  const ended =
+  const winningBid = useHighestBidForAuction(auctionView.auction.pubkey);
+  const ended = !auctionView.isInstantSale &&
     state?.hours === 0 && state?.minutes === 0 && state?.seconds === 0;
 
   let currentBid: number | string = 0;
   let label = '';
   if (isUpcoming || bids) {
-    label = ended ? 'Ended' : 'Starting bid';
+    label = ended
+      ? 'Ended'
+      : auctionView.isInstantSale
+      ? 'Price'
+      : 'Starting bid';
     currentBid = fromLamports(
       participationOnly ? participationFixedPrice : priceFloor,
       mintInfo,
